@@ -1,0 +1,10 @@
+services:
+  mock:
+    image: ender-watch:0.1.0
+    environment:
+      FIXTURE_BIND: 0.0.0.0
+    volumes:
+      - ./tests/fake_printer.py:/qa/fake_printer.py:ro
+    command: ["python", "/qa/fake_printer.py"]
+    ports:
+      - "127.0.0.1:17255:17255"

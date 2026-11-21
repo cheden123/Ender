@@ -1,0 +1,29 @@
+services:
+  ender-watch:
+    build: ./server
+    image: ender-watch:0.1.0
+    restart: unless-stopped
+    init: true
+    ports:
+      - "${BIND_ADDRESS:?Set BIND_ADDRESS to the LAN address of the VM}:${PORT:-8080}:8080"
+    environment:
+      APP_TOKEN: ${APP_TOKEN:?Generate APP_TOKEN in .env}
+      MOONRAKER_URL: ${MOONRAKER_URL:?Set the Moonraker URL}
+      MOONRAKER_API_KEY: ${MOONRAKER_API_KEY:-}
+      CAMERA_SNAPSHOT_URL: ${CAMERA_SNAPSHOT_URL:?Set the JPEG snapshot URL}
+      CAMERA_STREAM_URL: ${CAMERA_STREAM_URL:-}
+      DETECTION_THRESHOLD: ${DETECTION_THRESHOLD:-0.50}
+      DATA_DIR: /data
+    volumes:
+      - print-data:/data
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os,urllib.request as u; u.urlopen(u.Request('http://127.0.0.1:8080/api/status',headers={'Authorization':'Bearer '+os.environ['APP_TOKEN']}),timeout=4).close()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+volumes:
+  print-data:

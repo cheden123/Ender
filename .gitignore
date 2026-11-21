@@ -1,0 +1,16 @@
+.env
+*.jks
+*.p12
+*.keystore
+*.apk
+*.idsig
+local.properties
+.idea/
+.gradle/
+build/
+__pycache__/
+.pytest_cache/
+.venv/
+*.pyc
+data/
+*.onnx
