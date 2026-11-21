@@ -19,6 +19,14 @@ from fastapi.responses import FileResponse, Response, StreamingResponse
 from PIL import Image
 
 
+def duration_identifies_new_job(job, elapsed, observed_at):
+    # Without Moonraker history a same-file reprint can overtake the previous
+    # duration during downtime. Klipper's total_duration includes pause time.
+    return elapsed + 2 < job["elapsed"] or (
+        not job["source_id"] and abs((observed_at - elapsed) - job["started"]) > 5
+    )
+
+
 class Monitor:
     def __init__(self, client=None, classifier=None):
         self.root = Path(os.getenv("DATA_DIR", "/data")).resolve()
@@ -110,6 +118,7 @@ class Monitor:
             o = raw["status"]
             p = o.get("print_stats", {})
             elapsed = float(p.get("total_duration", 0))
+            observed_at = time.time()
             state = p.get("state", "standby")
             name = p.get("filename", "")
             active = state in ("printing", "paused")
@@ -137,7 +146,7 @@ class Monitor:
                 and active
                 and (
                     job["filename"] != name
-                    or elapsed + 2 < job["elapsed"]
+                    or duration_identifies_new_job(job, elapsed, observed_at)
                     or (
                         source_id and job["source_id"] and source_id != job["source_id"]
                     )
@@ -156,7 +165,7 @@ class Monitor:
             if active and not job:
                 cur = self.db.execute(
                     "INSERT INTO jobs(filename,state,started,elapsed,source_id) VALUES(?,?,?,?,?)",
-                    (name, state, time.time() - elapsed, elapsed, source_id),
+                    (name, state, observed_at - elapsed, elapsed, source_id),
                 )
                 job = self.db.execute(
                     "SELECT * FROM jobs WHERE id=?", (cur.lastrowid,)
@@ -610,7 +619,9 @@ def create_app(monitor=None):
                     not job
                     or jid != current["job_id"]
                     or p.get("filename") != job["filename"]
-                    or float(p.get("total_duration", 0)) + 2 < job["elapsed"]
+                    or duration_identifies_new_job(
+                        job, float(p.get("total_duration", 0)), time.time()
+                    )
                 ):
                     raise HTTPException(409, "Job changed; refresh status")
                 if job["source_id"]:

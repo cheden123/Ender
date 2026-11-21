@@ -5,8 +5,14 @@ import os
 os.environ.setdefault("APP_TOKEN", "test-token-at-least-24-bytes-long")
 
 import httpx
-from main import Monitor, create_app, valid_name
+from main import Monitor, create_app, duration_identifies_new_job, valid_name
 from PIL import Image
+
+
+def test_same_filename_after_unobserved_restart_without_moonraker_history():
+    job = {"source_id": None, "started": 1000, "elapsed": 30}
+    assert not duration_identifies_new_job(job, elapsed=120, observed_at=1120)
+    assert duration_identifies_new_job(job, elapsed=95, observed_at=1120)
 
 
 def test_monitor_controls_and_history(tmp_path, monkeypatch):
