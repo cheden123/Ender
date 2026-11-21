@@ -1,0 +1,37 @@
+name: Check Ender Watch
+on: [pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - run: ./gradlew --no-daemon :app:assembleRelease
+        working-directory: android
+  compose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      BIND_ADDRESS: 127.0.0.1
+      PORT: '18080'
+      APP_TOKEN: ephemeral-simulator-access-only
+      MOONRAKER_URL: http://mock:17255
+      CAMERA_SNAPSHOT_URL: http://mock:17255/snapshot
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose -f compose.yaml -f tests/compose.qa.yaml build
+      - run: docker compose -f compose.yaml -f tests/compose.qa.yaml up --no-build -d
+      - run: python tests/stack_smoke.py
+      - name: Backend regression tests
+        run: |
+          docker compose run --rm --no-deps --user root -v "$PWD/server:/tests:ro" ender-watch sh -ec '
+            pip install -q pytest && cp /tests/test_*.py . && PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q
+          '
+      - if: failure()
+        run: docker compose -f compose.yaml -f tests/compose.qa.yaml logs --tail=40
